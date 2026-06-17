@@ -182,7 +182,7 @@
 
 <header>
   <h1>PDF → Markdown: Model × Harness Benchmark</h1>
-  <p>How model capability and harness design interact — a 3-model × 2-harness natural experiment converting MASQUE protocol articles to clean Markdown.</p>
+  <p>How model capability and harness design interact — a 3-model × 3-harness natural experiment converting MASQUE protocol articles to clean Markdown.</p>
 </header>
 
 <nav>
@@ -192,6 +192,7 @@
   <a href="#vision-vs-text">Vision vs Text</a>
   <a href="#routing">OpenCode Routing</a>
   <a href="#libraries">Extraction Libraries</a>
+  <a href="#copilot-baseline">Copilot Baseline</a>
   <a href="#per-run">Per-Run Notes</a>
   <a href="#takeaways">Takeaways</a>
 </nav>
@@ -226,16 +227,49 @@
   </table>
 
   <p><strong>Models tested:</strong> Claude Sonnet 4.6 (vision), Kimi K2.6 (vision), DeepSeek-V4-Pro (text-only).<br>
-  <strong>Harnesses tested:</strong> Claude Code CLI, OpenCode.</p>
+  <strong>Harnesses tested:</strong> Claude Code CLI, OpenCode, GitHub Copilot.</p>
 
   <div class="callout callout-info">
-    Kimi K2.6 is vision-capable, but OpenCode did not route the PDFs to it as images — it returned an error and fell back to text extraction. This is itself a finding. See <a href="#routing">OpenCode Routing</a>.
+    Kimi K2.6 is vision-capable, but OpenCode did not route the PDFs to it as images — it returned an error and fell back to text extraction. Copilot routes PDFs to no model as images. See <a href="#routing">OpenCode Routing</a> and <a href="#copilot-baseline">Copilot Baseline</a>.
   </div>
 </section>
 
 <!-- MATRIX -->
 <section id="matrix">
   <h2>Summary Matrix</h2>
+
+  <h3>At a glance</h3>
+  <table style="width:auto;margin:0 0 1.5em">
+    <thead>
+      <tr>
+        <th>Model</th>
+        <th style="text-align:center">Claude Code</th>
+        <th style="text-align:center">OpenCode</th>
+        <th style="text-align:center">Copilot</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Sonnet 4.6</strong></td>
+        <td style="text-align:center"><span class="grade grade-A">A</span></td>
+        <td style="text-align:center"><span class="grade grade-A">A</span></td>
+        <td style="text-align:center"><span class="grade grade-Bp">B</span></td>
+      </tr>
+      <tr>
+        <td><strong>Kimi K2.6</strong></td>
+        <td style="text-align:center"><span class="grade grade-Am">A−</span></td>
+        <td style="text-align:center"><span class="grade grade-Cp">C+</span></td>
+        <td style="text-align:center"><span class="grade grade-F">F</span></td>
+      </tr>
+      <tr>
+        <td><strong>DeepSeek-V4-Pro</strong></td>
+        <td style="text-align:center"><span class="grade grade-Bp">B+</span></td>
+        <td style="text-align:center"><span class="grade grade-F">F</span></td>
+        <td style="text-align:center"><span class="grade grade-F">F</span></td>
+      </tr>
+    </tbody>
+  </table>
+
   <div class="matrix-wrap">
     <table>
       <thead>
@@ -332,13 +366,54 @@
           <td class="cross">✗</td>
           <td><span class="grade grade-F">F</span></td>
         </tr>
+        <tr>
+          <td><strong>Sonnet 4.6</strong></td>
+          <td>Copilot</td>
+          <td>Custom PyMuPDF pipeline (8 iterations)</td>
+          <td class="tick">✓</td>
+          <td class="part">⚠ Partial</td>
+          <td>Rich — source URL, author, publisher, topics, <code>retrieved</code> date</td>
+          <td class="cross">✗⁴</td>
+          <td>Silently omitted</td>
+          <td class="tick">✓ Correct</td>
+          <td class="part">⚠ Partial</td>
+          <td><span class="grade grade-Bp">B</span></td>
+        </tr>
+        <tr>
+          <td><strong>Kimi K2.6</strong></td>
+          <td>Copilot</td>
+          <td>Instant raw dump</td>
+          <td class="cross">✗</td>
+          <td class="cross">✗</td>
+          <td>Empty title/author; hallucinated <code>source_url</code>⁵</td>
+          <td class="cross">✗</td>
+          <td>Silently omitted</td>
+          <td class="tick">✓ Correct</td>
+          <td class="cross">✗</td>
+          <td><span class="grade grade-F">F</span></td>
+        </tr>
+        <tr>
+          <td><strong>DeepSeek-V4-Pro</strong></td>
+          <td>Copilot</td>
+          <td>Instant raw dump</td>
+          <td class="cross">✗</td>
+          <td class="cross">✗</td>
+          <td>Filename as title; no source URL</td>
+          <td class="cross">✗</td>
+          <td>Silently omitted</td>
+          <td class="tick">✓ Correct</td>
+          <td class="cross">✗</td>
+          <td><span class="grade grade-F">F</span></td>
+        </tr>
       </tbody>
     </table>
   </div>
   <p style="font-size:.78em;color:#666;margin-top:.6em">
     ¹ pymupdf4llm decoded ligatures in the Cloudflare PDF correctly but failed on the InstaTunnel PDF's font encoding.<br>
     ² One false heading: <code>## it intentionally.</code> — a sentence fragment that started a new page was misidentified as a heading by the library.<br>
-    ³ <code>The current state of WireGuard</code> incorrectly nested as H3 under <code>Before the MASQUE</code>; the "Cloudflare is on a mission…" paragraph also detached from its section heading.
+    ³ <code>The current state of WireGuard</code> incorrectly nested as H3 under <code>Before the MASQUE</code>; the "Cloudflare is on a mission…" paragraph also detached from its section heading.<br>
+    ⁴ Sonnet/Copilot: the Extended CONNECT request code block was lost in extraction; some page chrome (Related Posts) was not stripped.<br>
+    ⁵ Only fabrication in the entire benchmark: <code>source_url: "https://blog.unnic.com"</code> — invented, not present anywhere in the source.
   </p>
 </section>
 
@@ -647,6 +722,72 @@ Zero Trust products.</pre>
 
   <h3>DeepSeek-V4-Pro / OpenCode &nbsp;<span class="grade grade-F">F</span></h3>
   <p>The baseline failure mode. Raw binary PDF text extraction produced garbled output on both documents: ligatures decoded as whitespace throughout, ragged line wrapping from PDF column layout preserved verbatim, page headers and footers repeated on every section, and all paragraph text run together without Markdown structure. Frontmatter contained empty <code>title</code> and <code>author</code> fields with only file-level metadata. The model made no recovery attempt — it accepted the degraded input and passed it through. The correct heading structure is the one bright spot: because DeepSeek lacks vision, it had no layout information to misread, so it at least did not introduce structural errors.</p>
+
+  <h3>Sonnet 4.6 / Copilot &nbsp;<span class="grade grade-Bp">B</span></h3>
+  <p>The most elaborate extraction process in the experiment: no harness behavioral shaping, no vision access, yet Sonnet self-diagnosed the problem and built an 8-iteration custom pipeline. It discovered the exact ligature byte mappings by context analysis (<code>\x01</code>=ffi, <code>\x02</code>=ft, <code>\x03</code>=fi, <code>\x04</code>=fl, <code>\x05</code>=ff), measured real Y-gaps between blocks (1.1pt intra-paragraph, 16.1pt inter-paragraph) to tune paragraph joining, and processed at line level to handle mixed-size blocks. The Cloudflare doc output is solid B+ work. The InstaTunnel doc still carries column-wrap truncation artefacts throughout — words cut at the PDF right margin — which Sonnet correctly identified as "fundamental PDF rendering artifacts I can't fix" without visual input. RELATED POSTS chrome leaked through on the Cloudflare doc; the Extended CONNECT code block was lost in extraction.</p>
+
+  <h3>Kimi K2.6 / Copilot &nbsp;<span class="grade grade-F">F</span></h3>
+  <p>Instant raw dump. Empty <code>title</code> and <code>author</code> fields. The only fabrication in the entire benchmark: <code>source_url: "https://blog.unnic.com"</code> — a hallucinated URL not present anywhere in the source documents. Kimi apparently could not locate the canonical URL in the extracted text and invented a plausible-looking one rather than leaving the field blank or acknowledging uncertainty. Ligatures dropped entirely (a fifth distinct failure mode: characters silently removed). All chrome retained.</p>
+
+  <h3>DeepSeek-V4-Pro / Copilot &nbsp;<span class="grade grade-F">F</span></h3>
+  <p>Instant raw dump. Frontmatter uses the PDF filename (with underscores) as the document title and the filename again as <code>source</code> — no source URL extracted or attempted. Ligatures dropped entirely, same pattern as Kimi/Copilot. All chrome retained including the full Related Posts section and Substack widgets. Zero recovery attempt.</p>
+</section>
+
+<!-- COPILOT BASELINE -->
+<section id="copilot-baseline">
+  <div class="finding-header">
+    <div class="finding-number">6</div>
+    <h2 style="border:none;margin:0;padding:0">Copilot as a Null-Harness Baseline</h2>
+  </div>
+  <p>Copilot provides no behavioral shaping and routes PDFs to no model as images. Every model worked from text extraction alone. This creates the cleanest signal of intrinsic model reasoning quality in the experiment — what each model does when left entirely to its own devices.</p>
+
+  <table style="margin:1em 0;font-size:.9em">
+    <thead>
+      <tr>
+        <th>Model</th>
+        <th>Response to no-scaffolding condition</th>
+        <th>Grade</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Sonnet 4.6</strong></td>
+        <td>Self-diagnosed the problem. Built an 8-iteration custom extraction pipeline over ~10 minutes: font-size analysis, Y-gap measurement, per-byte ligature mapping, line-level processing. Correct structure, clean ligatures, some residual artefacts.</td>
+        <td><span class="grade grade-Bp">B</span></td>
+      </tr>
+      <tr>
+        <td><strong>Kimi K2.6</strong></td>
+        <td>Instant raw dump. Made no attempt to diagnose or compensate. Hallucinated a <code>source_url</code> rather than acknowledging it could not find one.</td>
+        <td><span class="grade grade-F">F</span></td>
+      </tr>
+      <tr>
+        <td><strong>DeepSeek-V4-Pro</strong></td>
+        <td>Instant raw dump. Made no attempt to diagnose or compensate. Used filename as title.</td>
+        <td><span class="grade grade-F">F</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>The within-harness spread — Sonnet B vs Kimi/DeepSeek F — is the largest quality gap of any fixed-harness comparison in the experiment. It is larger than the Claude Code vs OpenCode gap for any individual model.</p>
+
+  <div class="callout callout-warn">
+    <strong>The hallucinated URL:</strong> Kimi/Copilot's frontmatter contains <code>source_url: "https://blog.unnic.com"</code> — not a real or related URL. It is the only fabrication in the entire benchmark. A model under minimal scaffolding, unable to locate the source URL in garbled extracted text, invented a plausible-looking one. Every other run either found the correct URL or left the field blank.
+  </div>
+
+  <p>This also surfaces a distinct ligature failure mode: Copilot's extraction dropped ligature characters entirely (no replacement, no space — just silent removal: <code>trac</code>, <code>ngerprint</code>, <code>Cloudare</code>). Added to the four earlier modes, the full taxonomy across the experiment is:</p>
+
+  <table style="margin:1em 0;font-size:.9em">
+    <thead>
+      <tr><th>Run</th><th>fi/fl ligature failure mode</th><th>Example</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>DeepSeek / OpenCode v1</td><td>Replaced with spaces</td><td><code>tra  c</code>, <code> ngerprint</code></td></tr>
+      <tr><td>GPT-5.4 / Codex v1</td><td>Replaced with <code>-</code> / <code>"</code></td><td><code>-ngerprint</code>, <code>Cloud"are</code></td></tr>
+      <tr><td>Kimi / OpenCode v2</td><td>Replaced with <code>�</code></td><td><code>tra<?>c</code></td></tr>
+      <tr><td>Kimi + DeepSeek / Copilot</td><td>Silently dropped</td><td><code>trac</code>, <code>ngerprint</code></td></tr>
+      <tr><td>Sonnet / Copilot (custom pipeline)</td><td>Correctly resolved by context analysis</td><td><code>traffic</code>, <code>fingerprint</code></td></tr>
+    </tbody>
+  </table>
 </section>
 
 <!-- TAKEAWAYS -->
@@ -666,10 +807,13 @@ Zero Trust products.</pre>
   <p>When the PDF read failed, DeepSeek/OpenCode accepted the degraded output; Kimi/OpenCode installed a better library; DeepSeek/Claude Code installed a better library <em>and</em> read the PDF metadata dictionary for additional context. The willingness to diagnose and recover from tool failures — rather than pass garbage input to the model and hope — is a meaningful agentic capability differentiator.</p>
 
   <h3>5. Extraction library choice has material impact on output quality</h3>
-  <p>Raw binary extraction is not viable for documents with OpenType ligature fonts. Between the three usable libraries, <code>pdfplumber</code> and <code>PyMuPDF (fitz)</code> are more robust than <code>pymupdf4llm</code>'s auto-formatting wrapper, which had a font encoding failure on one of the two source PDFs.</p>
+  <p>Raw binary extraction is not viable for documents with OpenType ligature fonts. Between the usable libraries, <code>pdfplumber</code> and <code>PyMuPDF (fitz)</code> are more robust than <code>pymupdf4llm</code>'s auto-formatting wrapper. Five distinct ligature failure modes appeared across runs, ranging from spaces to hyphens to Unicode replacement characters to silent deletion. Only Sonnet/Copilot resolved ligatures correctly — by discovering the per-document byte mappings through context analysis.</p>
+
+  <h3>6. Model intrinsic reasoning is a third quality axis, independent of vision and harness</h3>
+  <p>The Copilot runs isolate this most clearly: with no behavioral shaping and no vision access, only Sonnet self-directed toward a sophisticated solution. Kimi and DeepSeek produced identical instant raw dumps. The within-harness spread (B vs F) is larger than any harness-driven gap for the same model. A model that reasons about its own tool failures and compensates is qualitatively different from one that doesn't, regardless of what scaffolding surrounds it.</p>
 
   <div class="callout callout-success">
-    <strong>Practical recommendation:</strong> For PDF-to-Markdown conversion, prefer a vision-capable model through a harness that correctly routes PDFs as images. If text extraction is unavoidable, prompt explicitly for editorial conversion (not transcription), and choose <code>pdfplumber</code> or <code>PyMuPDF (fitz)</code> over auto-formatting wrappers. Verify harness capability detection before assuming a model's limitations are inherent rather than configuration-imposed.
+    <strong>Practical recommendation:</strong> For PDF-to-Markdown conversion, prefer a vision-capable model through a harness that correctly routes PDFs as images. If text extraction is unavoidable, prompt explicitly for editorial conversion (not transcription), choose <code>pdfplumber</code> or <code>PyMuPDF (fitz)</code> over auto-formatting wrappers, and verify harness capability detection before assuming a model's output ceiling reflects its true capability. When no scaffolding is available at all, model intrinsic reasoning quality determines the outcome.
   </div>
 </section>
 
@@ -717,7 +861,7 @@ Zero Trust products.</pre>
 </main>
 
 <footer>
-  Generated from 6 output files across 3 models × 2 harnesses, plus 3 supplementary runs.<br>
+  Generated from 9 output files across 3 models × 3 harnesses, plus 3 supplementary runs.<br>
   Source PDFs: Cloudflare Blog (2024-03-06) · InstaTunnel Substack (2026-06-06)
 </footer>
 
