@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF → Markdown: Model × Harness Benchmark</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.7;
+    color: #1a1a1a;
+    margin: 0;
+    background: #f4f4f4;
+    font-size: 16px;
+  }
+
+  header {
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    color: #fff;
+    padding: 3.5em 2em 2.5em;
+    text-align: center;
+  }
+
+  header h1 { font-size: 2em; margin: 0 0 .4em; font-weight: 700; }
+  header p  { opacity: .8; max-width: 680px; margin: 0 auto; font-size: 1.05em; }
+
+  nav {
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+    padding: .6em 2em;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    gap: 1.5em;
+    overflow-x: auto;
+    font-size: .85em;
+  }
+  nav a { color: #1a73e8; text-decoration: none; white-space: nowrap; font-weight: 500; }
+  nav a:hover { text-decoration: underline; }
+
+  main { max-width: 1060px; margin: 0 auto; padding: 2em; }
+
+  section {
+    background: #fff;
+    border-radius: 8px;
+    padding: 2em 2.2em;
+    margin-bottom: 2em;
+    box-shadow: 0 1px 4px rgba(0,0,0,.09);
+  }
+
+  h2 {
+    font-size: 1.35em;
+    color: #0f2027;
+    border-bottom: 2px solid #e8e8e8;
+    padding-bottom: .4em;
+    margin: 0 0 1em;
+  }
+
+  h3 { font-size: 1.05em; color: #333; margin: 1.6em 0 .5em; }
+
+  p { margin: 0 0 .9em; }
+
+  code {
+    background: #f0f0f0;
+    padding: .1em .35em;
+    border-radius: 3px;
+    font-family: "Fira Code", Consolas, "Cascadia Code", monospace;
+    font-size: .85em;
+    color: #c7254e;
+  }
+
+  pre {
+    font-family: "Fira Code", Consolas, "Cascadia Code", monospace;
+    font-size: .8em;
+    line-height: 1.55;
+    padding: 1em 1.2em;
+    border-radius: 5px;
+    overflow-x: auto;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+
+  .bad  { background: #fff0f0; border-left: 4px solid #e53e3e; }
+  .good { background: #f0fff4; border-left: 4px solid #38a169; }
+  .mid  { background: #fffbf0; border-left: 4px solid #d69e2e; }
+  .plain{ background: #f7f7f7; border-left: 4px solid #aaa; }
+
+  .label {
+    font-size: .72em;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    margin-bottom: .3em;
+    color: #555;
+    font-family: sans-serif;
+  }
+
+  .compare-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1em;
+    margin: 1em 0;
+  }
+
+  .compare-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1em;
+    margin: 1em 0;
+  }
+
+  .excerpt { margin-bottom: 1em; }
+
+  .callout {
+    padding: .75em 1.1em;
+    border-radius: 5px;
+    margin: 1.1em 0;
+    font-size: .92em;
+  }
+  .callout-info    { background: #ebf4ff; border-left: 4px solid #3182ce; }
+  .callout-warn    { background: #fffff0; border-left: 4px solid #d69e2e; }
+  .callout-success { background: #f0fff4; border-left: 4px solid #38a169; }
+
+  /* --- Matrix table --- */
+  .matrix-wrap { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .85em;
+  }
+
+  thead tr { background: #0f2027; color: #fff; }
+  thead th { padding: .6em .75em; text-align: left; font-weight: 600; white-space: nowrap; }
+  tbody td { padding: .55em .75em; border-bottom: 1px solid #e8e8e8; vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: #f9f9f9; }
+
+  .grade {
+    display: inline-block;
+    font-weight: 700;
+    font-size: 1.1em;
+    width: 2.2em;
+    text-align: center;
+    padding: .1em .2em;
+    border-radius: 4px;
+  }
+  .grade-A  { background: #c6f6d5; color: #22543d; }
+  .grade-Am { background: #c6f6d5; color: #276749; }
+  .grade-Bp { background: #bee3f8; color: #1a365d; }
+  .grade-Cp { background: #fefcbf; color: #744210; }
+  .grade-F  { background: #fed7d7; color: #742a2a; }
+
+  .tick { color: #38a169; font-weight: 700; }
+  .cross { color: #e53e3e; font-weight: 700; }
+  .part  { color: #d69e2e; font-weight: 700; }
+
+  footer {
+    text-align: center;
+    padding: 2em;
+    font-size: .8em;
+    color: #888;
+    background: #fff;
+    border-top: 1px solid #eee;
+  }
+
+  @media (max-width: 700px) {
+    .compare-2, .compare-3 { grid-template-columns: 1fr; }
+    header h1 { font-size: 1.4em; }
+    main { padding: 1em; }
+    section { padding: 1.2em; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>PDF → Markdown: Model × Harness Benchmark</h1>
+  <p>How model capability and harness design interact — a 3-model × 2-harness natural experiment converting MASQUE protocol articles to clean Markdown.</p>
+</header>
+
+<nav>
+  <a href="#setup">Setup</a>
+  <a href="#matrix">Matrix</a>
+  <a href="#harness-effect">Harness Effect</a>
+  <a href="#vision-vs-text">Vision vs Text</a>
+  <a href="#routing">OpenCode Routing</a>
+  <a href="#libraries">Extraction Libraries</a>
+  <a href="#per-run">Per-Run Notes</a>
+  <a href="#takeaways">Takeaways</a>
+</nav>
+
+<main>
+
+<!-- SETUP -->
+<section id="setup">
+  <h2>Setup</h2>
+  <p>Two PDF articles were converted to Markdown with YAML frontmatter using the same prompt across three models and two AI coding harnesses. The PDFs were browser-printed web pages — both carry repeating page headers, footer chrome, and page-number stamps. The InstaTunnel article additionally uses an OpenType ligature font set (<em>fi, fl, ffi</em>) that some extraction tools fail to decode.</p>
+
+  <table style="margin:1em 0">
+    <thead>
+      <tr>
+        <th>Source</th>
+        <th>Pages</th>
+        <th>Key challenges</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Cloudflare Blog</strong> — "Zero Trust WARP: tunneling with a MASQUE" (Dan Hall, 2024-03-06)</td>
+        <td>10</td>
+        <td>HTTP protocol stack diagram; page-break mid-sentence; browser chrome</td>
+      </tr>
+      <tr>
+        <td><strong>InstaTunnel Substack</strong> — "MASQUE: The HTTP/3 Tunneling Protocol Redefining Network Proxying" (2026-06-06)</td>
+        <td>16</td>
+        <td>Ligature-heavy font; numbered list spanning page break with inline code block; Substack subscribe widget and comment UI in page chrome</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p><strong>Models tested:</strong> Claude Sonnet 4.6 (vision), Kimi K2.6 (vision), DeepSeek-V4-Pro (text-only).<br>
+  <strong>Harnesses tested:</strong> Claude Code CLI, OpenCode.</p>
+
+  <div class="callout callout-info">
+    Kimi K2.6 is vision-capable, but OpenCode did not route the PDFs to it as images — it returned an error and fell back to text extraction. This is itself a finding. See <a href="#routing">OpenCode Routing</a>.
+  </div>
+</section>
+
+<!-- MATRIX -->
+<section id="matrix">
+  <h2>Summary Matrix</h2>
+  <div class="matrix-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th>Harness</th>
+          <th>PDF method</th>
+          <th>Ligatures</th>
+          <th>Page artefacts stripped</th>
+          <th>Frontmatter quality</th>
+          <th>Code blocks</th>
+          <th>Diagram</th>
+          <th>Heading structure</th>
+          <th>Chrome stripped</th>
+          <th>Grade</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Sonnet 4.6</strong></td>
+          <td>Claude Code</td>
+          <td>Images (Read tool)</td>
+          <td class="tick">✓</td>
+          <td class="tick">✓</td>
+          <td>Rich — title, author, date, URL, tags</td>
+          <td class="tick">✓</td>
+          <td>Reconstructed as table</td>
+          <td class="tick">✓ Correct</td>
+          <td class="tick">✓</td>
+          <td><span class="grade grade-A">A</span></td>
+        </tr>
+        <tr>
+          <td><strong>Sonnet 4.6</strong></td>
+          <td>OpenCode</td>
+          <td>Images + extracted text</td>
+          <td class="tick">✓</td>
+          <td class="tick">✓</td>
+          <td>Rich + <code>pdf_file</code> field</td>
+          <td class="tick">✓</td>
+          <td>Silently omitted</td>
+          <td class="tick">✓ Correct</td>
+          <td class="tick">✓</td>
+          <td><span class="grade grade-A">A</span></td>
+        </tr>
+        <tr>
+          <td><strong>Kimi K2.6</strong></td>
+          <td>Claude Code</td>
+          <td>pdfplumber</td>
+          <td class="tick">✓</td>
+          <td class="tick">✓</td>
+          <td>Rich — title, author, date, URL, type</td>
+          <td class="tick">✓</td>
+          <td>Silently omitted</td>
+          <td class="tick">✓ Correct</td>
+          <td class="tick">✓</td>
+          <td><span class="grade grade-Am">A−</span></td>
+        </tr>
+        <tr>
+          <td><strong>Kimi K2.6</strong></td>
+          <td>OpenCode</td>
+          <td>pymupdf4llm</td>
+          <td class="part">⚠ Partial¹</td>
+          <td class="cross">✗</td>
+          <td>File metadata only — path, extraction timestamp</td>
+          <td class="cross">✗</td>
+          <td>Tombstone notice</td>
+          <td class="part">⚠ Near-miss²</td>
+          <td class="cross">✗</td>
+          <td><span class="grade grade-Cp">C+</span></td>
+        </tr>
+        <tr>
+          <td><strong>DeepSeek-V4-Pro</strong></td>
+          <td>Claude Code</td>
+          <td>PyMuPDF (fitz)</td>
+          <td class="tick">✓</td>
+          <td class="tick">✓</td>
+          <td>Rich + <code>pdf_creator</code>/<code>pdf_producer</code> from PDF metadata</td>
+          <td class="tick">✓</td>
+          <td>Silently omitted</td>
+          <td class="part">⚠ Partial³</td>
+          <td class="tick">✓</td>
+          <td><span class="grade grade-Bp">B+</span></td>
+        </tr>
+        <tr>
+          <td><strong>DeepSeek-V4-Pro</strong></td>
+          <td>OpenCode</td>
+          <td>Raw binary extraction</td>
+          <td class="cross">✗</td>
+          <td class="cross">✗</td>
+          <td>Empty fields — <code>title: ""</code>, <code>author: ""</code></td>
+          <td class="cross">✗</td>
+          <td>Silently omitted</td>
+          <td class="tick">✓ Correct</td>
+          <td class="cross">✗</td>
+          <td><span class="grade grade-F">F</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:.78em;color:#666;margin-top:.6em">
+    ¹ pymupdf4llm decoded ligatures in the Cloudflare PDF correctly but failed on the InstaTunnel PDF's font encoding.<br>
+    ² One false heading: <code>## it intentionally.</code> — a sentence fragment that started a new page was misidentified as a heading by the library.<br>
+    ³ <code>The current state of WireGuard</code> incorrectly nested as H3 under <code>Before the MASQUE</code>; the "Cloudflare is on a mission…" paragraph also detached from its section heading.
+  </p>
+</section>
+
+<!-- HARNESS EFFECT -->
+<section id="harness-effect">
+  <h2>Finding 1: The Harness Effect</h2>
+  <p>The most striking result: <strong>Kimi K2.6 through Claude Code produced output nearly indistinguishable from the Sonnet runs; Kimi K2.6 through OpenCode produced the second-worst output in the set.</strong> Same model, same task, same source documents. The harness is the variable.</p>
+
+  <p>The Claude Code system prompt shapes the model toward editorial judgment — "convert to Markdown" means decide what belongs, not transcribe everything. OpenCode's prompt apparently does not carry this signal, and Kimi treated the task mechanically.</p>
+
+  <h3>Frontmatter: what question did the model answer?</h3>
+  <p>The most revealing single diff. OpenCode's Kimi answered "where did this file come from?" Claude Code's Kimi answered "what is this document?"</p>
+
+  <div class="compare-2">
+    <div class="excerpt">
+      <div class="label">❌ Kimi K2.6 / OpenCode</div>
+      <pre class="bad">---
+source: 'Cloudflare Zero Trust WARP: tunneling with a MASQUE'
+filename: Cloudflare Zero Trust WARP_ tunneling with a MASQUE.pdf
+path: /mnt/c/Users/aearles/OneDrive - Pediatrix/Documents/code/...
+date_extracted: '2026-06-17T10:24:35.128270'
+---</pre>
+    </div>
+    <div class="excerpt">
+      <div class="label">✅ Kimi K2.6 / Claude Code</div>
+      <pre class="good">---
+title: "Zero Trust WARP: tunneling with a MASQUE"
+author: Dan Hall
+published_date: 2024-03-06
+source_url: https://blog.cloudflare.com/zero-trust-warp-with-a-masque/
+source_type: Cloudflare Blog
+read_time: 5 min
+extraction_date: 2026-06-17
+---</pre>
+    </div>
+  </div>
+
+  <h3>Page artefacts and browser chrome</h3>
+  <p>OpenCode's Kimi retained every browser-print artefact: repeating URL headers, page-number stamps, "Related Posts" sections, and even the Substack subscribe widget. It also produced one false heading — <code>## it intentionally.</code> — where a sentence fragment that began a new page was misidentified as a heading by the extraction library. Claude Code's Kimi stripped all of this.</p>
+
+  <div class="compare-2">
+    <div class="excerpt">
+      <div class="label">❌ Kimi K2.6 / OpenCode — page break artefacts</div>
+      <pre class="bad">...WireGuard and block these ports. We've also faced
+situations where the ISP does know what WireGuard is
+and blocks
+
+3 of 10                               6/17/2026, 09:59
+
+Zero Trust WARP: tunneling with a MASQUE
+                  https://blog.cloudflare.com/...
+
+## it intentionally.
+
+This can play havoc for roaming Zero Trust WARP users...</pre>
+    </div>
+    <div class="excerpt">
+      <div class="label">✅ Kimi K2.6 / Claude Code — clean</div>
+      <pre class="good">...WireGuard and block these ports. We've also faced
+situations where the ISP does know what WireGuard is
+and blocks it intentionally.
+
+This can play havoc for roaming Zero Trust WARP users
+at their local coffee shop, in hotels, on planes...</pre>
+    </div>
+  </div>
+
+  <h3>Code blocks and list numbering</h3>
+  <p>Page 5 of the InstaTunnel PDF contains a 4-step numbered procedure where step 2 includes a fenced code block. OpenCode's Kimi collapsed the code block content onto one line, and the list numbering reset to 1 after the code block. Claude Code's Kimi produced a properly fenced block with continuous numbering 1–4.</p>
+
+  <div class="compare-2">
+    <div class="excerpt">
+      <div class="label">❌ Kimi K2.6 / OpenCode — code mangled, list resets</div>
+      <pre class="bad">2. On an HTTP/3 request stream, the client sends an
+   Extended CONNECT reques
+
+   :method = CONNECT
+   :protocol = connect-udp :scheme = https :path =
+   /.well-known/masque/udp/target.example.com/51820/
+   :authority = proxy.example.com
+
+   The target host and port are encoded in the URI
+   template path...
+
+1. The proxy receives this request...  ← resets to 1!
+2. From this point, the client sends QUIC DATAGRAM...</pre>
+    </div>
+    <div class="excerpt">
+      <div class="label">✅ Kimi K2.6 / Claude Code — correct</div>
+      <pre class="good">2. On an HTTP/3 request stream, the client sends an
+   Extended CONNECT request:
+   ```
+   :method = CONNECT
+   :protocol = connect-udp
+   :scheme = https
+   :path = /.well-known/masque/udp/target.example.com/51820/
+   :authority = proxy.example.com
+   ```
+   The target host and port are encoded in the URI
+   template path...
+3. The proxy receives this request...
+4. From this point, the client sends QUIC DATAGRAM...</pre>
+    </div>
+  </div>
+</section>
+
+<!-- VISION VS TEXT -->
+<section id="vision-vs-text">
+  <h2>Finding 2: Vision vs. Text Extraction</h2>
+  <p>Holding the harness constant at Claude Code, comparing Sonnet 4.6 (vision) against DeepSeek-V4-Pro (text-only) reveals the quality ceiling that harness shaping alone cannot raise.</p>
+
+  <h3>The HTTP protocol stack diagram</h3>
+  <p>Page 5 of the Cloudflare PDF contains a visual diagram comparing the HTTP/1.1, HTTP/2, and HTTP/3 layer stacks. No text extraction run could interpret it. Sonnet 4.6, receiving the page as an image, reconstructed it as a Markdown table.</p>
+
+  <div class="compare-2">
+    <div class="excerpt">
+      <div class="label">✅ Sonnet 4.6 / Claude Code — reconstructed from image</div>
+      <pre class="good">| Layer | HTTP 1.1 | HTTP/2 | HTTP/3 |
+|---|---|---|---|
+| HTTP Semantics | HTTP 1.1 | HTTP/2 | HTTP/3 |
+| Transport Security | TLS/SSL (optional) | TLS 1.2+ | TLS 1.3 |
+| Transport | TCP | TCP | QUIC / UDP |
+| Network | IPv4 / IPv6 | IPv4 / IPv6 | IPv4 / IPv6 |</pre>
+    </div>
+    <div class="excerpt">
+      <div class="label">— All text-extraction runs — silently omitted (or tombstoned)</div>
+      <pre class="mid">**==> picture [516 x 367] intentionally omitted <==**
+
+MASQUE unlocks QUIC's potential for proxying by
+providing the application layer building blocks...
+
+(Kimi/OpenCode left a tombstone notice.
+All other text-extraction runs simply skipped it.)</pre>
+    </div>
+  </div>
+
+  <h3>Heading structure errors</h3>
+  <p>DeepSeek-V4-Pro via Claude Code produced clean, well-formatted text — but without visual layout context, it made structural errors that vision avoided. It nested <code>The current state of WireGuard</code> as a child of <code>Before the MASQUE</code>, when they are sibling sections in the original. It also detached the "Cloudflare is on a mission…" paragraph from its section heading, placing it above the <code>##&nbsp;Before the MASQUE</code> heading rather than below it.</p>
+
+  <div class="compare-2">
+    <div class="excerpt">
+      <div class="label">❌ DeepSeek-V4-Pro / Claude Code — incorrect nesting</div>
+      <pre class="bad">Cloudflare is on a mission to help build a better
+Internet... [paragraph adrift above its heading]
+
+## Before the MASQUE
+
+### The current state of WireGuard  ← wrong: H3
+
+WireGuard was the perfect choice...</pre>
+    </div>
+    <div class="excerpt">
+      <div class="label">✅ Sonnet 4.6 / Claude Code — correct sibling structure</div>
+      <pre class="good">## Before the MASQUE
+
+Cloudflare is on a mission to help build a better
+Internet...
+
+## The current state of WireGuard  ← correct: H2
+
+WireGuard was the perfect choice...</pre>
+    </div>
+  </div>
+
+  <div class="callout callout-warn">
+    DeepSeek/Claude Code is solidly B+ work — better than any text-extraction run had any right to be, given its input. But the structural errors are the kind that a human editor would catch immediately from a visual scan of the source, and that a vision model catches automatically.
+  </div>
+</section>
+
+<!-- OPENCODE ROUTING -->
+<section id="routing">
+  <h2>Finding 3: OpenCode's Inconsistent Vision Routing</h2>
+  <p>OpenCode sent PDF pages as images to Claude Sonnet 4.6, but when Kimi K2.6 tried to read the PDFs, it received: <code>"ERROR: Cannot read pdf (this model does not support pdf input)"</code>. Kimi then installed <code>pymupdf4llm</code> and proceeded with text extraction.</p>
+
+  <p>This matters because Kimi K2.6 <em>is</em> vision-capable. OpenCode appears to maintain a model capability registry that does not yet include Kimi — so a capable model was silently downgraded to the text-extraction path.</p>
+
+  <table style="margin:1em 0">
+    <thead>
+      <tr>
+        <th>Model</th>
+        <th>Vision capable?</th>
+        <th>OpenCode PDF routing</th>
+        <th>Outcome</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Sonnet 4.6</strong></td>
+        <td>Yes</td>
+        <td>Images + extracted text (dual signal)</td>
+        <td>Correct</td>
+      </tr>
+      <tr>
+        <td><strong>Kimi K2.6</strong></td>
+        <td>Yes</td>
+        <td>Error → pymupdf4llm fallback</td>
+        <td>Misconfigured — capable model downgraded</td>
+      </tr>
+      <tr>
+        <td><strong>DeepSeek-V4-Pro</strong></td>
+        <td>No</td>
+        <td>Raw text extraction</td>
+        <td>Correct (nothing better was possible)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Notably, OpenCode gave Sonnet <em>both</em> rendered images and extracted text simultaneously — richer input than Claude Code's images-only approach. The extra <code>pdf_file</code> field in Sonnet/OpenCode's frontmatter is a signal that OpenCode passes additional file provenance metadata through its tool layer.</p>
+
+  <div class="callout callout-info">
+    This introduces a third variable beyond model capability and harness behavioral shaping: <strong>harness capability detection fidelity</strong>. A harness that misclassifies a capable model imposes a quality ceiling that is invisible to the user at task time.
+  </div>
+</section>
+
+<!-- EXTRACTION LIBRARIES -->
+<section id="libraries">
+  <h2>Finding 4: Extraction Library Quality</h2>
+  <p>For models that were not given images, the choice of PDF text extraction library determined whether the raw input was readable or garbled. Three libraries appeared across the runs, plus the baseline of no library at all.</p>
+
+  <table style="margin:1em 0">
+    <thead>
+      <tr>
+        <th>Library</th>
+        <th>Used by</th>
+        <th>Ligature handling</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>pdfplumber</code></td>
+        <td>Kimi / Claude Code</td>
+        <td>✓ Both PDFs clean</td>
+        <td>Best all-round result; character-level positioning</td>
+      </tr>
+      <tr>
+        <td><code>PyMuPDF (fitz)</code></td>
+        <td>DeepSeek / Claude Code</td>
+        <td>✓ Both PDFs clean</td>
+        <td>Also reads the PDF metadata dictionary, enabling <code>pdf_creator</code> and <code>pdf_producer</code> frontmatter fields</td>
+      </tr>
+      <tr>
+        <td><code>pymupdf4llm</code></td>
+        <td>Kimi / OpenCode</td>
+        <td>⚠ Partial — Cloudflare PDF OK, InstaTunnel broken</td>
+        <td>LLM-oriented Markdown wrapper; emits picture tombstone notices; font encoding mismatch on InstaTunnel PDF</td>
+      </tr>
+      <tr>
+        <td>Raw binary extraction</td>
+        <td>DeepSeek / OpenCode</td>
+        <td>✗ Both PDFs broken</td>
+        <td>Baseline failure: preserves PDF layout whitespace as ragged line breaks; garbles all ligature characters</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>What ligature corruption looks like</h3>
+  <p>The InstaTunnel PDF uses an OpenType font where common letter pairs are stored as single glyph codes. Libraries that do not map these codes back to their constituent characters produce output like the following:</p>
+
+  <div class="compare-2">
+    <div class="excerpt">
+      <div class="label">❌ DeepSeek-V4-Pro / OpenCode — raw extraction, ligatures broken</div>
+      <pre class="bad">The way networks proxy tra  c is undergoing a
+fundamental shi  . For decades, two failure modes
+de ned every VPN or tunnel deployment...
+
+DPI appliance could immediately  ngerprint and block.
+[...] iCloud Private Relay, Cloud  are's entire
+WARP  eet, and an expanding catalogue o enterprise
+Zero Trust products.</pre>
+    </div>
+    <div class="excerpt">
+      <div class="label">✅ DeepSeek-V4-Pro / Claude Code — fitz, clean</div>
+      <pre class="good">The way networks proxy traffic is undergoing a
+fundamental shift. For decades, two failure modes
+defined every VPN or tunnel deployment...
+
+DPI appliance could immediately fingerprint and block.
+[...] iCloud Private Relay, Cloudflare's entire
+WARP fleet, and an expanding catalogue of enterprise
+Zero Trust products.</pre>
+    </div>
+  </div>
+
+  <p>The <code>tra  c</code> → <code>traffic</code>, <code> ngerprint</code> → <code>fingerprint</code>, <code>Cloud  are</code> → <code>Cloudflare</code>, <code>WARP  eet</code> → <code>WARP fleet</code> differences all trace to the same root cause: the <em>fi</em> and <em>fl</em> ligature glyphs being decoded as whitespace instead of their constituent letters.</p>
+</section>
+
+<!-- PER-RUN NOTES -->
+<section id="per-run">
+  <h2>Per-Run Behaviour Summary</h2>
+
+  <h3>Claude Sonnet 4.6 / Claude Code &nbsp;<span class="grade grade-A">A</span></h3>
+  <p>The <code>Read</code> tool rendered each PDF page as an image. The model saw the visual layout directly, enabling correct heading hierarchy, diagram reconstruction (Markdown table), and the stripping of all page chrome. Frontmatter included title, author, publication date, source URL, publisher, source type, and tags. No notable errors.</p>
+
+  <h3>Claude Sonnet 4.6 / OpenCode &nbsp;<span class="grade grade-A">A</span></h3>
+  <p>OpenCode provided both rendered images and extracted text simultaneously — a dual-signal input richer than Claude Code's images-only approach. Output is essentially identical in quality to the Claude Code run, with minor stylistic differences: YAML tags as a proper list, a <code>pdf_file</code> provenance field added to frontmatter, and slightly more consistent inline <code>code</code> formatting on protocol terms. The HTTP protocol stack diagram was silently omitted (not reconstructed), which is the only meaningful delta from the Claude Code run.</p>
+
+  <h3>Kimi K2.6 / Claude Code &nbsp;<span class="grade grade-Am">A−</span></h3>
+  <p>Despite receiving no visual input, Kimi matched the Sonnet output in almost every measurable dimension. It used <code>pdfplumber</code> (installed in a temporary venv — notably choosing venv over <code>--break-system-packages</code>) and made all the right editorial choices: stripped chrome, synthesized document metadata, correct code blocks, continuous list numbering. The only gaps are the missing diagram (silently omitted) and a two-line header artefact at the top of the InstaTunnel file (<code>InstaTunnel / JUN 06, 2026</code> not stripped). The harness clearly drove strong editorial judgment from a text-only input.</p>
+
+  <h3>DeepSeek-V4-Pro / Claude Code &nbsp;<span class="grade grade-Bp">B+</span></h3>
+  <p>Used <code>PyMuPDF (fitz)</code> directly rather than the higher-level <code>pymupdf4llm</code> wrapper, producing clean text. Made all editorial decisions correctly: stripped chrome, synthesized frontmatter from article content. Uniquely, it also read the PDF metadata dictionary and added <code>pdf_creator: Firefox Developer Edition 152.0</code> and <code>pdf_producer: cairo 1.18.4</code> — the most complete provenance information of any run. Errors are structural: without visual layout, it nested <code>The current state of WireGuard</code> as a child of <code>Before the MASQUE</code> and misplaced one paragraph. One factual extraction error: reported HTTP/3 CDN adoption at 72% where the source says 78%.</p>
+
+  <h3>Kimi K2.6 / OpenCode &nbsp;<span class="grade grade-Cp">C+</span></h3>
+  <p>Used <code>pymupdf4llm</code>, which handled the Cloudflare PDF's ligatures but failed on the InstaTunnel PDF's font encoding. Page number stamps and repeating URL headers were retained throughout. Frontmatter described file-system location and extraction timestamp, not document identity. One false heading (<code>## it intentionally.</code>) from a page-break fragment. Code block content collapsed to a single line; list numbering reset after the code block. Did strip the Substack subscribe and comment widgets. Better than DeepSeek/OpenCode because ligatures were partly preserved and heading structure was approximately correct.</p>
+
+  <h3>DeepSeek-V4-Pro / OpenCode &nbsp;<span class="grade grade-F">F</span></h3>
+  <p>The baseline failure mode. Raw binary PDF text extraction produced garbled output on both documents: ligatures decoded as whitespace throughout, ragged line wrapping from PDF column layout preserved verbatim, page headers and footers repeated on every section, and all paragraph text run together without Markdown structure. Frontmatter contained empty <code>title</code> and <code>author</code> fields with only file-level metadata. The model made no recovery attempt — it accepted the degraded input and passed it through. The correct heading structure is the one bright spot: because DeepSeek lacks vision, it had no layout information to misread, so it at least did not introduce structural errors.</p>
+</section>
+
+<!-- TAKEAWAYS -->
+<section id="takeaways">
+  <h2>Takeaways</h2>
+
+  <h3>1. Harness behavioral shaping is a first-order variable</h3>
+  <p>The Kimi comparison is the cleanest evidence: the same model ranged from C+ to A− depending solely on which harness it ran through. The Claude Code system prompt encodes an implicit contract — "convert" means make editorial decisions, not transcribe — that OpenCode's prompt apparently does not.</p>
+
+  <h3>2. Vision capability determines a quality ceiling the harness cannot raise</h3>
+  <p>A good harness got DeepSeek-V4-Pro to B+ work. But the structural errors from working with flat extracted text — wrong heading nesting, detached paragraphs — are exactly the kind of thing a visual scan of the source document resolves instantly. The harness can change what the model does with its input; it cannot change what the model's input was.</p>
+
+  <h3>3. Harness capability detection is a third independent variable</h3>
+  <p>OpenCode silently downgraded a vision-capable model to text extraction because of what appears to be an incomplete model registry. This failure mode is invisible to the user at task time and produces output that looks like a model limitation when it is actually a harness configuration issue.</p>
+
+  <h3>4. Failure recovery behaviour separates good agents from bad ones</h3>
+  <p>When the PDF read failed, DeepSeek/OpenCode accepted the degraded output; Kimi/OpenCode installed a better library; DeepSeek/Claude Code installed a better library <em>and</em> read the PDF metadata dictionary for additional context. The willingness to diagnose and recover from tool failures — rather than pass garbage input to the model and hope — is a meaningful agentic capability differentiator.</p>
+
+  <h3>5. Extraction library choice has material impact on output quality</h3>
+  <p>Raw binary extraction is not viable for documents with OpenType ligature fonts. Between the three usable libraries, <code>pdfplumber</code> and <code>PyMuPDF (fitz)</code> are more robust than <code>pymupdf4llm</code>'s auto-formatting wrapper, which had a font encoding failure on one of the two source PDFs.</p>
+
+  <div class="callout callout-success">
+    <strong>Practical recommendation:</strong> For PDF-to-Markdown conversion, prefer a vision-capable model through a harness that correctly routes PDFs as images. If text extraction is unavoidable, prompt explicitly for editorial conversion (not transcription), and choose <code>pdfplumber</code> or <code>PyMuPDF (fitz)</code> over auto-formatting wrappers. Verify harness capability detection before assuming a model's limitations are inherent rather than configuration-imposed.
+  </div>
+</section>
+
+<!-- SUPPLEMENTARY RUNS -->
+<section id="supplementary">
+  <h2>Supplementary Runs</h2>
+  <p>Three additional runs were collected after the main matrix was complete. They are graded for reference but excluded from the primary comparison because each involved a condition that would make a direct comparison misleading.</p>
+
+  <table style="margin:1em 0">
+    <thead>
+      <tr>
+        <th>Run</th>
+        <th>Non-standard condition</th>
+        <th>Grade</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>DeepSeek-V4-Pro / OpenCode v2</strong></td>
+        <td>Python libraries (fitz) already installed by prior runs in the shared environment</td>
+        <td><span class="grade grade-Am">B−</span></td>
+        <td>Clean text, good frontmatter including the article's actual tag list. Chrome mostly stripped. Heading hierarchy error (WireGuard as H3 under Before the MASQUE) persists — confirming this is model-level inference, not a tool problem. Minor: "Discuss on Hacker News" line survived at the foot of the Cloudflare doc.</td>
+      </tr>
+      <tr>
+        <td><strong>GPT-5.4 / Codex v1</strong></td>
+        <td>First attempt read existing outputs from other runs before being re-isolated; harness (OpenAI Codex CLI) is outside the Claude Code / OpenCode comparison</td>
+        <td><span class="grade grade-F">D+</span></td>
+        <td>Structured output as raw page dumps (<code>## Page 1</code>, <code>## Page 2</code>, …) with all chrome retained. Best provenance frontmatter of any text-extraction run: sha256 checksum, <code>conversion_method</code>, <code>converted_at</code>, nested <code>pdf_metadata</code>. Ligature corruption present with a different character mapping than DeepSeek/OpenCode: <code>fi</code>→<code>-</code>, <code>fl</code>/<code>ffl</code>→<code>"</code> (e.g. <code>-ngerprint</code>, <code>Cloud"are</code>). The only run to attempt <code>fitz.get_text('markdown')</code> native mode — received <code>AssertionError</code> and fell back.</td>
+      </tr>
+      <tr>
+        <td><strong>GPT-5.4 / Codex v2</strong></td>
+        <td>Required an explicit follow-up prompt requesting vision-guided reconstruction — a different task specification than all other runs received</td>
+        <td><span class="grade grade-Cp">C+</span></td>
+        <td>The most elaborate approach in the experiment: rendered all 26 pages to PNG, inspected representative pages visually, extracted per-span font sizes to infer heading hierarchy, wrote a 364-line custom reconstruction script. Structural wins: correct heading hierarchy, correct content cutoff at page 8 / page 14, unique <code>&gt; Figure: …</code> notes describing image content from visual inspection. However the body text is not readable: every PDF text line is its own Markdown paragraph (blank line after each), and PDF column-width word truncations are left unhealed throughout — e.g. <code>unreliable delivery o</code> / <code>top of</code> and <code>retransmitted by th</code> / <code>transport</code> appear as separate paragraphs. List numbering also resets after the CONNECT-UDP code block. The structural layer is A-range work; the text layer is unusable without post-processing. Runtime ~10 minutes with multiple disconnections — roughly 10× any other run.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-info">
+    The DeepSeek v2 result confirms the extraction library finding: with fitz available, OpenCode/DeepSeek jumps from F to B− but the heading hierarchy error remains regardless. The Codex v2 result is the clearest proof that vision-guided structure inference works — heading hierarchy was the one error that survived all text-only runs, and Codex v2 fixed it via font-size analysis plus visual page inspection. But the reconstruction script didn't heal PDF column-width line breaks, leaving the body text broken into single-line paragraphs with truncated words. Structural quality is A-range; prose readability is D-range; the composite grade of C+ reflects that a document you can't read is only marginally better than one structured wrong.
+  </div>
+</section>
+
+</main>
+
+<footer>
+  Generated from 6 output files across 3 models × 2 harnesses, plus 3 supplementary runs.<br>
+  Source PDFs: Cloudflare Blog (2024-03-06) · InstaTunnel Substack (2026-06-06)
+</footer>
+
+</body>
+</html>
